@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>My My Passport Utility - GUI</title>
+  <link rel="stylesheet" href="/css/bootstrap.css">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+
+<body>
+  <div class="container">
+    <div class="d-flex justify-content-center">
+      <select class="form-select m-3" id="drive-selection">
+        <option selected disabled hidden>Select a drive below</option>
+      </select>
+    </div>
+    <nav class="flex-column ">
+      <div class="nav nav-tabs justify-content-center" id="nav-tab" role="tablist">
+        <button class="nav-link" id="nav-password-tab" data-bs-toggle="tab" data-bs-target="#nav-password" type="button"
+          role="tab" aria-controls="nav-password" aria-selected="true" disabled>Password</button>
+        <button class="nav-link" id="nav-diagnose-tab" data-bs-toggle="tab" data-bs-target="#nav-diagnose" type="button"
+          role="tab" aria-controls="nav-diagnose" aria-selected="true" disabled>Diagnose</button>
+        <button class="nav-link" id="nav-settings-tab" data-bs-toggle="tab" data-bs-target="#nav-settings" type="button"
+          role="tab" aria-controls="nav-settings" aria-selected="true" disabled>Settings</button>
+        <button class="nav-link" id="nav-erase-tab" data-bs-toggle="tab" data-bs-target="#nav-erase" type="button"
+          role="tab" aria-controls="nav-erase" aria-selected="true" disabled>Erase</button>
+      </div>
+    </nav>
+    <div class="tab-content" id="nav-tabContent">
+      <div class="tab-pane fade" id="nav-password" role="tabpanel" aria-labelledby="nav-password-tab" tabindex="0">
+        <div id="unlock-div">
+          <p>To continue, you must unlock your My Passport drive.<br>Please provide your password</p>
+          <table class="w-100">
+            <tr>
+              <td class="text-end">
+                <label for="input-unlock" class="pe-3">Password:</label>
+              </td>
+              <td class="w-100">
+                <input type="password" class="form-control" id="input-unlock" placeholder="Password">
+              </td>
+            </tr>
+            <tr>
+              <td class="text-end">
+                <label for="input-hint-show" class="pe-3">Hint:</label>
+              </td>
+              <td class="w-100">
+                <input type="text" class="form-control" id="input-hint-show" placeholder="None" disabled readonly>
+              </td>
+            </tr>
+          </table>
+          <button type="button" class="btn btn-primary" id="unlock-button">Unlock</button>
+        </div>
+
+        <div id="set-password-div">
+          <p>
+            Set a password to protect your drive.
+          </p>
+          <p class="text-danger">
+            There's no way to retrieve your data, if you forget the password.
+          </p>
+          <p class="text-danger">
+            There's no password length limit, but if you want to use wd official software to unlock the drive,
+            then the password should be 25 characters max.
+          </p>
+          <table class="w-100">
+            <tr>
+              <td class="text-end">
+                <label for="input-password" class="pe-3">Password:</label>
+              </td>
+              <td class="w-100">
+                <input type="password" class="form-control" id="input-password" placeholder="Password">
+              </td>
+            </tr>
+            <tr>
+              <td class="text-end">
+                <label for="input-verify-password" class="pe-3 text-nowrap">Verify Password:</label>
+              </td>
+              <td class="w-100">
+                <input type="password" class="form-control" id="input-verify-password" placeholder="Verify Password">
+              </td>
+            </tr>
+            <tr>
+              <td class="text-end">
+                <label for="input-hint-set" class="pe-3">Hint:</label>
+              </td>
+              <td class="w-100">
+                <input type="text" class="form-control" id="input-hint-set" placeholder="Hint">
+              </td>
+            </tr>
+          </table>
+          <button type="button" class="btn btn-primary" id="set-password-button">Set Password</button>
+        </div>
+
+        <div id="change-password-div">
+          <div class="row">
+            <div class="col-auto">
+              <input class="form-check-input" type="radio" name="change-password" id="change-password-remove" checked>
+              <label class="form-check-label" for="change-password-remove">Remove Password</label>
+            </div>
+            <div class="col-auto">
+              <input class="form-check-input" type="radio" name="change-password" id="change-password-change">
+              <label class="form-check-label" for="change-password-change">Change Password</label>
+            </div>
+          </div>
+          <table class="w-100">
+            <tr>
+              <td class="text-end">
+                <label for="input-current-password" class="pe-3 text-nowrap">Current Password:</label>
+              </td>
+              <td class="w-100">
+                <input type="password" class="form-control" id="input-current-password" placeholder="Password">
+              </td>
+            </tr>
+            <tr>
+              <td class="text-end">
+                <label for="input-current-hint" class="pe-3">Current Hint:</label>
+              </td>
+              <td class="w-100">
+                <input type="text" class="form-control" id="input-current-hint" placeholder="None" disabled readonly>
+              </td>
+            </tr>
+            <tr class="new-password-class">
+              <td class="text-end">
+                <label for="input-new-password" class="pe-3">New Password:</label>
+              </td>
+              <td class="w-100">
+                <input type="password" class="form-control" id="input-new-password" placeholder="Password">
+              </td>
+            </tr>
+            <tr class="new-password-class">
+              <td class="text-end">
+                <label for="input-new-verify-password" class="pe-3 text-nowrap">Verify Password:</label>
+              </td>
+              <td class="w-100">
+                <input type="password" class="form-control" id="input-new-verify-password"
+                  placeholder="Verify Password">
+              </td>
+            </tr>
+            <tr class="new-password-class">
+              <td class="text-end">
+                <label for="input-new-hint-set" class="pe-3">Hint:</label>
+              </td>
+              <td class="w-100">
+                <input type="text" class="form-control" id="input-new-hint-set" placeholder="Hint">
+              </td>
+            </tr>
+          </table>
+          <button type="button" class="btn btn-primary" id="remove-password-button">Remove Password</button>
+          <button type="button" class="btn btn-primary" id="change-password-button">Change Password</button>
+        </div>
+
+      </div>
+
+      <div class="tab-pane fade" id="nav-diagnose" role="tabpanel" aria-labelledby="nav-diagnose-tab" tabindex="0">
+        <p>Do a minimum drive self-test</p>
+        <button type="button" class="btn btn-primary" id="run-self-test">run self-test</button>
+      </div>
+
+      <div class="tab-pane fade" id="nav-settings" role="tabpanel" aria-labelledby="nav-settings-tab" tabindex="0">
+        <h5>Sleep Timer</h5>
+        <p>
+          Turn the sleep timer on or off.<br>
+          The OS may still turn devices to sleep state.
+        </p>
+        <div class="row">
+          <span class="col-auto">Sleep Timer: </span>
+          <div class="form-check form-switch col-auto">
+            <input class="form-check-input" type="checkbox" role="switch" id="sleep-timer-switch">
+          </div>
+        </div>
+        <div id="sleep-timer-value-block">
+          <p>The value may be rounded.<br>0 is the same as turning sleep timer off.</p>
+          <table>
+            <tr>
+              <td>
+                <label for="input-timer" class="pe-3">Timer:</label>
+              </td>
+              <td>
+                <input type="number" class="form-control" id="input-timer" placeholder="Timer (in seconds)">
+              </td>
+              <td>
+                <button type="button" class="btn btn-primary" id="sleep-timer-button">Set Timer</button>
+              </td>
+            </tr>
+          </table>
+        </div>
+
+        <h5 class="mt-3">LED</h5>
+        <p>
+          Turn the LED on or off.
+        </p>
+        <div class="row">
+          <span class="col-auto">LED:</span>
+          <div class="form-check form-switch col-auto">
+            <input class="form-check-input" type="checkbox" role="switch" id="led-switch">
+          </div>
+        </div>
+
+        <h5 class="mt-3">Virtual CD-ROM</h5>
+        <p>
+          Turn the Virtual CD-ROM on or off.<br>
+          It's quite useless to turn it on on linux, since it'll just contains a unlocker for Windows or macOS.<br>
+          You'll need to unplug and plug in to see the effect.
+        </p>
+        <div class="row">
+          <span class="col-auto">Virtual CD-ROM:</span>
+          <div class="form-check form-switch col-auto">
+            <input class="form-check-input" type="checkbox" role="switch" id="virtualcd-switch">
+          </div>
+        </div>
+
+      </div>
+
+      <div class="tab-pane fade" id="nav-erase" role="tabpanel" aria-labelledby="nav-erase-tab" tabindex="0">
+        <p>This utility permanently erases all the data on your drive. If you with to save any data on your drive, back
+          up your data prior to running this utility.</p>
+        <label class="form-check-label" for="agree-erase">
+          <input class="form-check-input" type="checkbox" value="" id="agree-erase">
+          I understand, clicking the Erase Drive button permanently erases all the data on the drive you have selected.
+        </label>
+        <button type="button" class="btn btn-primary d-block" id="erase-button" disabled>Erase</button>
+      </div>
+
+    </div>
+  </div>
+
+  <script src="/js/bootstrap.bundle.js"></script>
+  <script src="/js/main.js"></script>
+  <script>
+  </script>
+</body>
+
+</html>

@@ -1,0 +1,8 @@
+[workspace]
+
+members = [
+    "libscsi",
+    "mmpu",
+    "wd_vsc",
+    "mmpu_gui"
+]
