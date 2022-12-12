@@ -1,5 +1,3 @@
-use std::io;
-
 use crate::Scsi;
 
 #[repr(C)]
@@ -10,7 +8,7 @@ pub struct StandardInquiryData {
 }
 
 impl Scsi {
-    pub fn inquiry_product_identification(&self) -> io::Result<String> {
+    pub fn inquiry_product_identification(&self) -> crate::Result<String> {
         let data: StandardInquiryData = self.inquiry_general(None)?;
 
         let product_identification = String::from_utf8_lossy(&data.product_identification);

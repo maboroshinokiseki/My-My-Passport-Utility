@@ -1,5 +1,3 @@
-use std::io;
-
 use modular_bitfield_msb::prelude::*;
 
 use crate::Scsi;
@@ -36,7 +34,7 @@ impl Default for LogicalBlockProvisioningVPDPage {
 }
 
 impl Scsi {
-    pub fn inquiry_unmap_support(&self) -> io::Result<bool> {
+    pub fn inquiry_unmap_support(&self) -> crate::Result<bool> {
         let data: LogicalBlockProvisioningVPDPage =
             self.inquiry_general(Some(LOGICAL_BLOCK_PROVISIONING_VPD_PAGE_CODE))?;
 

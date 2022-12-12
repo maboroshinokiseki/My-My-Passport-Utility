@@ -1,11 +1,10 @@
 #![allow(dead_code)]
 
-use std::io;
-
 use modular_bitfield_msb::prelude::*;
 
-use super::{helper, FixedSenseBuffer};
-use crate::{Command, DataDirection, Scsi, SgIoHeader};
+use crate::{result_data::ResultData, Command, DataDirection, Scsi};
+
+use super::sense::{FixedSenseBuffer, Sense};
 
 const OPERATION_CODE: u8 = 0x1d;
 
@@ -34,7 +33,7 @@ impl Command for ThisCommand {
 
     type SenseBuffer = FixedSenseBuffer;
 
-    type ReturnType = TestResult;
+    type ReturnType = crate::Result<TestResult>;
 
     fn get_direction(&self) -> DataDirection {
         DataDirection::ToDevice
@@ -49,45 +48,32 @@ impl Command for ThisCommand {
     fn get_data(&self) -> Self::DataBufferWrapper {}
 
     fn get_sense_buffer(&self) -> Self::SenseBuffer {
-        helper::fixed_sense_buffer_value()
+        Self::SenseBuffer::default()
     }
 
     fn process_result(
         &self,
-        ioctl_result: i32,
-        io_header: &SgIoHeader<Self::CommandBuffer, Self::DataBuffer, Self::SenseBuffer>,
+        result: &ResultData<Self::DataBuffer, Self::SenseBuffer>,
     ) -> Self::ReturnType {
-        if let Err(error) = helper::check_ioctl_result(ioctl_result) {
-            return TestResult::Other(error);
-        }
-
-        let sense = io_header.sense_buffer.as_ref().unwrap();
+        result.check_ioctl_error()?;
+        let sense = result.sense_buffer.as_ref().unwrap();
         if sense.sense_key() == 0x04 {
-            return TestResult::HardwareError;
+            return Ok(TestResult::HardwareError);
         }
-        let test_result = helper::check_error_status_any_sense(
-            io_header.masked_status,
-            io_header.host_status,
-            io_header.driver_status,
-            io_header.sense_buffer_written,
-            Some(sense.as_slice()),
-        );
 
-        match test_result {
-            Ok(_) => TestResult::Ok,
-            Err(e) => TestResult::Other(e),
-        }
+        result.check_common_error()?;
+
+        Ok(TestResult::Ok)
     }
 }
 
 pub enum TestResult {
     Ok,
     HardwareError,
-    Other(io::Error),
 }
 
 impl Scsi {
-    pub fn send_diagnostic(&self) -> TestResult {
+    pub fn send_diagnostic(&self) -> crate::Result<TestResult> {
         self.execute_command(&ThisCommand {})
     }
 }

@@ -1,6 +1,6 @@
 [package]
 name = "mmpu"
-version = "1.0.0"
+version = "1.1.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 authors = ["maboroshinokiseki"]
@@ -9,6 +9,36 @@ description = "An unofficial WD My Passport utility"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-libscsi = {path = "../libscsi"}
-wd_vsc = {path = "../wd_vsc"}
+libscsi = { path = "../libscsi" }
+wd_vsc = { path = "../wd_vsc" }
 clap = { version = "4.0.25", features = ["derive"] }
+
+[build-dependencies]
+wd_vsc = { path = "../wd_vsc" }
+clap = "4.0.25"
+clap_complete = "4.0.6"
+
+[package.metadata.deb]
+assets = [
+    [
+        "target/release/mmpu",
+        "usr/bin/",
+        "755",
+    ],
+    [
+        "complete/mmpu.bash",
+        "usr/share/bash-completion/completions/mmpu",
+        "644",
+    ],
+    [
+        "complete/mmpu.zsh",
+        "usr/share/zsh/site-functions/_mmpu",
+        "644",
+    ],
+    [
+        "complete/mmpu.fish",
+        "usr/share/fish/completions/mmpu.fish",
+        "644",
+    ],
+
+]

@@ -1,7 +1,5 @@
 #![allow(dead_code)]
 
-use std::io;
-
 use modular_bitfield_msb::prelude::*;
 
 use libscsi::Scsi;
@@ -60,15 +58,15 @@ impl PowerConditionModePage {
     }
 }
 
-fn read(device: &Scsi) -> io::Result<PowerConditionModePage> {
-    device.mode_sense::<PowerConditionModePage>(PAGE_CODE)
+fn read(device: &Scsi) -> crate::Result<PowerConditionModePage> {
+    Ok(device.mode_sense::<PowerConditionModePage>(PAGE_CODE)?)
 }
 
-pub fn get_sleep_timer(device: &Scsi) -> io::Result<u32> {
+pub fn get_sleep_timer(device: &Scsi) -> crate::Result<u32> {
     Ok(read(device)?.get_sleep_timer())
 }
 
-pub fn set_sleep_timer(device: &Scsi, sleep_timer: u32) -> io::Result<()> {
+pub fn set_sleep_timer(device: &Scsi, sleep_timer: u32) -> crate::Result<()> {
     let (enable_timer, sleep_timer) = if sleep_timer == 0 {
         (false, 0)
     } else {
@@ -81,7 +79,8 @@ pub fn set_sleep_timer(device: &Scsi, sleep_timer: u32) -> io::Result<()> {
         .with_page_length(PAGE_LENGTH)
         .with_standby_z(enable_timer as u8)
         .with_standby_z_condition_timer(sleep_timer.saturating_mul(10));
-    device.mode_select(data)
+
+    Ok(device.mode_select(data)?)
 }
 
 #[cfg(test)]

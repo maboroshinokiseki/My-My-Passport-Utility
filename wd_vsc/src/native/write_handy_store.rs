@@ -1,10 +1,14 @@
 #![allow(dead_code)]
 
-use std::io;
-
 use modular_bitfield_msb::prelude::*;
 
-use libscsi::{command::*, DataDirection, Scsi, SgIoHeader};
+use libscsi::{
+    command::{
+        sense::{BytesSenseBuffer, Sense},
+        *,
+    },
+    DataDirection, ResultData, Scsi,
+};
 
 use crate::HANDY_STORE_BLOCK_SIZE;
 
@@ -33,9 +37,9 @@ impl Command for ThisCommand {
 
     type DataBufferWrapper = [u8; HANDY_STORE_BLOCK_SIZE];
 
-    type SenseBuffer = helper::BytesSenseBuffer;
+    type SenseBuffer = BytesSenseBuffer;
 
-    type ReturnType = io::Result<()>;
+    type ReturnType = crate::Result<()>;
 
     fn get_direction(&self) -> DataDirection {
         DataDirection::ToDevice
@@ -53,16 +57,15 @@ impl Command for ThisCommand {
     }
 
     fn get_sense_buffer(&self) -> Self::SenseBuffer {
-        helper::bytes_sense_buffer_value()
+        Self::SenseBuffer::default()
     }
 
     fn process_result(
         &self,
-        ioctl_result: i32,
-        io_header: &SgIoHeader<Self::CommandBuffer, Self::DataBuffer, Self::SenseBuffer>,
+        result: &ResultData<Self::DataBuffer, Self::SenseBuffer>,
     ) -> Self::ReturnType {
-        helper::check_ioctl_result(ioctl_result)?;
-        helper::check_error_status(io_header)?;
+        result.check_ioctl_error()?;
+        result.check_common_error()?;
 
         Ok(())
     }
@@ -73,7 +76,7 @@ impl super::WdVscWrapper {
         scsi: &Scsi,
         index: u32,
         data: [u8; HANDY_STORE_BLOCK_SIZE],
-    ) -> io::Result<()> {
+    ) -> crate::Result<()> {
         scsi.execute_command(&ThisCommand {
             handy_store_index: index,
             data,

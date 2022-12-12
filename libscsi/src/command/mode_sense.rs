@@ -1,11 +1,12 @@
 #![allow(dead_code)]
 
-use std::{io, marker::PhantomData};
+use std::marker::PhantomData;
 
 use modular_bitfield_msb::prelude::*;
 
-use super::helper;
-use crate::{Command, DataDirection, Scsi, SgIoHeader};
+use crate::{result_data::ResultData, Command, DataDirection, Scsi};
+
+use super::sense::{BytesSenseBuffer, Sense};
 
 const OPERATION_CODE: u8 = 0x5a;
 
@@ -39,9 +40,9 @@ where
 
     type DataBufferWrapper = T;
 
-    type SenseBuffer = helper::BytesSenseBuffer;
+    type SenseBuffer = BytesSenseBuffer;
 
-    type ReturnType = io::Result<T>;
+    type ReturnType = crate::Result<T>;
 
     fn get_direction(&self) -> DataDirection {
         DataDirection::FromDevice
@@ -60,23 +61,22 @@ where
     }
 
     fn get_sense_buffer(&self) -> Self::SenseBuffer {
-        helper::bytes_sense_buffer_value()
+        Self::SenseBuffer::default()
     }
 
     fn process_result(
         &self,
-        ioctl_result: i32,
-        io_header: &SgIoHeader<Self::CommandBuffer, Self::DataBuffer, Self::SenseBuffer>,
+        result: &ResultData<Self::DataBuffer, Self::SenseBuffer>,
     ) -> Self::ReturnType {
-        helper::check_ioctl_result(ioctl_result)?;
-        helper::check_error_status(io_header)?;
+        result.check_ioctl_error()?;
+        result.check_common_error()?;
 
-        Ok(T::clone(io_header.data.as_ref().unwrap()))
+        Ok(T::clone(result.data.as_ref().unwrap()))
     }
 }
 
 impl Scsi {
-    pub fn mode_sense<T: Default + Clone>(&self, page_code: u8) -> io::Result<T> {
+    pub fn mode_sense<T: Default + Clone>(&self, page_code: u8) -> crate::Result<T> {
         self.execute_command(&ThisCommand {
             page_code,
             phantom_data: PhantomData,

@@ -16,6 +16,8 @@ pub enum Error {
     PasswordBlobSizeIncorrect,
     #[error("Unsupported cipher.")]
     UnsupportedCipher,
+    #[error("LibScsi Error. {0:?}")]
+    ScsiError(#[from] libscsi::Error),
     #[error("IO Error. {0:?}")]
     IoError(#[from] std::io::Error),
     #[error("{0}")]

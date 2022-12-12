@@ -1,5 +1,22 @@
 use modular_bitfield_msb::prelude::*;
 
+pub trait Sense {
+    fn default() -> Self;
+    fn as_byte_slice(&self) -> &[u8];
+}
+
+pub type BytesSenseBuffer = [u8; 255];
+
+impl Sense for BytesSenseBuffer {
+    fn default() -> Self {
+        [0; 255]
+    }
+
+    fn as_byte_slice(&self) -> &[u8] {
+        &self[..]
+    }
+}
+
 #[bitfield]
 #[derive(Debug)]
 pub struct FixedSenseBuffer {
@@ -22,8 +39,12 @@ pub struct FixedSenseBuffer {
     pub additional_sense_bytes_0: B128,
 }
 
-impl FixedSenseBuffer {
-    pub fn as_slice(&self) -> &[u8] {
+impl Sense for FixedSenseBuffer {
+    fn default() -> Self {
+        Self::new()
+    }
+
+    fn as_byte_slice(&self) -> &[u8] {
         &self.bytes
     }
 }

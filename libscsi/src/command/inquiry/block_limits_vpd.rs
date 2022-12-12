@@ -1,5 +1,3 @@
-use std::io;
-
 use modular_bitfield_msb::prelude::*;
 
 use crate::Scsi;
@@ -40,7 +38,7 @@ impl Default for BlockLimitsVPDPage {
 }
 
 impl Scsi {
-    pub fn inquiry_unmap_block_limit(&self) -> io::Result<u32> {
+    pub fn inquiry_unmap_block_limit(&self) -> crate::Result<u32> {
         let data: BlockLimitsVPDPage = self.inquiry_general(Some(BLOCK_LIMITS_VPD_PAGE_CODE))?;
 
         Ok(data.maximum_unmap_lba_count())

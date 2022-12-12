@@ -8,6 +8,8 @@ pub type Result<T> = std::result::Result<T, Error>;
 #[derive(Debug, Error)]
 pub enum Error {
     #[error("{0}")]
+    Scsi(#[from] libscsi::Error),
+    #[error("{0}")]
     WdVsc(#[from] wd_vsc::Error),
     #[error("{0}")]
     Io(#[from] io::Error),

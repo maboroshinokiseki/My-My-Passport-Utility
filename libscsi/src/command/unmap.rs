@@ -1,11 +1,12 @@
 #![allow(dead_code)]
 
-use std::{io, mem::size_of};
+use std::mem::size_of;
 
 use modular_bitfield_msb::prelude::*;
 
-use super::helper;
-use crate::{Command, DataDirection, Scsi, SgIoHeader};
+use crate::{result_data::ResultData, Command, DataDirection, Scsi};
+
+use super::sense::{BytesSenseBuffer, Sense};
 
 const OPERATION_CODE: u8 = 0x42;
 
@@ -21,7 +22,7 @@ struct UnmapCommand {
     control: B8,
 }
 
-#[repr(C, packed)]
+#[repr(packed)]
 struct UnmapParameterList<const N: usize> {
     /// size of unmap_block_descriptor_data_length + _reserved + unmap_block_descriptors
     unmap_data_length: u16,
@@ -31,7 +32,7 @@ struct UnmapParameterList<const N: usize> {
     unmap_block_descriptors: [UnmapBlockDescriptor; N],
 }
 
-#[repr(C, packed)]
+#[repr(packed)]
 struct UnmapBlockDescriptor {
     unmap_logical_block_address: u64,
     number_of_logical_blocks: u32,
@@ -50,9 +51,9 @@ impl Command for ThisCommand {
 
     type DataBufferWrapper = Self::DataBuffer;
 
-    type SenseBuffer = helper::BytesSenseBuffer;
+    type SenseBuffer = BytesSenseBuffer;
 
-    type ReturnType = io::Result<()>;
+    type ReturnType = crate::Result<()>;
 
     fn get_direction(&self) -> DataDirection {
         DataDirection::ToDevice
@@ -80,21 +81,20 @@ impl Command for ThisCommand {
     }
 
     fn get_sense_buffer(&self) -> Self::SenseBuffer {
-        helper::bytes_sense_buffer_value()
+        Self::SenseBuffer::default()
     }
 
     fn process_result(
         &self,
-        ioctl_result: i32,
-        io_header: &SgIoHeader<Self::CommandBuffer, Self::DataBuffer, Self::SenseBuffer>,
+        result: &ResultData<Self::DataBuffer, Self::SenseBuffer>,
     ) -> Self::ReturnType {
-        helper::check_ioctl_result(ioctl_result)?;
-        helper::check_error_status(io_header)
+        result.check_ioctl_error()?;
+        result.check_common_error()
     }
 }
 
 impl Scsi {
-    pub fn unmap(&self, lba_offset: u64, lba_count: u64, max_unmap_lba: u32) -> io::Result<()> {
+    pub fn unmap(&self, lba_offset: u64, lba_count: u64, max_unmap_lba: u32) -> crate::Result<()> {
         // it's actually last_lba + 1
         let last_lba = lba_offset.saturating_add(lba_count);
         let lba_sets: Vec<_> = (lba_offset..last_lba - 1)

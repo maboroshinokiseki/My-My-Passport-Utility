@@ -1,11 +1,10 @@
 #![allow(dead_code)]
 
-use std::io;
-
 use modular_bitfield_msb::prelude::*;
 
-use super::helper;
-use crate::{Command, DataDirection, Scsi, SgIoHeader};
+use crate::{result_data::ResultData, Command, DataDirection, Scsi};
+
+use super::sense::{BytesSenseBuffer, Sense};
 
 const OPERATION_CODE: u8 = 0x55;
 
@@ -35,9 +34,9 @@ where
 
     type DataBufferWrapper = T;
 
-    type SenseBuffer = helper::BytesSenseBuffer;
+    type SenseBuffer = BytesSenseBuffer;
 
-    type ReturnType = io::Result<()>;
+    type ReturnType = crate::Result<()>;
 
     fn get_direction(&self) -> DataDirection {
         DataDirection::ToDevice
@@ -56,23 +55,22 @@ where
     }
 
     fn get_sense_buffer(&self) -> Self::SenseBuffer {
-        helper::bytes_sense_buffer_value()
+        Self::SenseBuffer::default()
     }
 
     fn process_result(
         &self,
-        ioctl_result: i32,
-        io_header: &SgIoHeader<Self::CommandBuffer, Self::DataBuffer, Self::SenseBuffer>,
+        result: &ResultData<Self::DataBuffer, Self::SenseBuffer>,
     ) -> Self::ReturnType {
-        helper::check_ioctl_result(ioctl_result)?;
-        helper::check_error_status(io_header)?;
+        result.check_ioctl_error()?;
+        result.check_common_error()?;
 
         Ok(())
     }
 }
 
 impl Scsi {
-    pub fn mode_select<T: Copy>(&self, data: T) -> io::Result<()> {
+    pub fn mode_select<T: Copy>(&self, data: T) -> crate::Result<()> {
         self.execute_command(&ThisCommand { data })
     }
 }

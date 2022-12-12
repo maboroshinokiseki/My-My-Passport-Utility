@@ -1,4 +1,4 @@
-use std::{io, mem::size_of, slice};
+use std::{mem::size_of, slice};
 
 use libscsi::Scsi;
 
@@ -27,22 +27,18 @@ struct SecurityBlockRaw {
     checksum: u8,
 }
 
-pub fn read_security_block(scsi: &Scsi) -> io::Result<SecurityBlock> {
+pub fn read_security_block(scsi: &Scsi) -> crate::Result<SecurityBlock> {
     let raw_block = scsi.read_handy_store(SECURITY_BLOCK_INDEX)?;
     let (h, block, t) = unsafe { raw_block.as_slice().align_to::<SecurityBlockRaw>() };
     if !h.is_empty() || !t.is_empty() {
-        return Err(io::Error::new(
-            io::ErrorKind::Other,
-            "Invalid security block",
-        ));
+        return Err(crate::Error::Other("Invalid security block".to_owned()));
     }
 
     let block = &block[0];
 
     if block.signature != SECURITY_BLOCK_SIGNATURE {
-        return Err(io::Error::new(
-            io::ErrorKind::Other,
-            "Invalid security block, signature does not match",
+        return Err(crate::Error::Other(
+            "Invalid security block, signature does not match".to_owned(),
         ));
     }
 
@@ -52,9 +48,8 @@ pub fn read_security_block(scsi: &Scsi) -> io::Result<SecurityBlock> {
     }
 
     if sum != 0 {
-        return Err(io::Error::new(
-            io::ErrorKind::Other,
-            "Invalid security block, checksum error",
+        return Err(crate::Error::Other(
+            "Invalid security block, checksum error".to_owned(),
         ));
     }
 
@@ -85,11 +80,11 @@ pub fn write_security_block(
     iteration_count: u32,
     salt: [u8; 8],
     hint: String,
-) -> io::Result<()> {
+) -> crate::Result<()> {
     let mut hint: Vec<u16> = hint.encode_utf16().collect();
     hint.push(0);
     if hint.len() > MAX_HINT_SIZE_FOR_U16 {
-        return Err(io::Error::new(io::ErrorKind::Other, "hint is too long"));
+        return Err(crate::Error::Other("hint is too long".to_owned()));
     }
     let mut hint_block = [0u16; MAX_HINT_SIZE_FOR_U16];
     hint_block[..hint.len()].copy_from_slice(&hint);

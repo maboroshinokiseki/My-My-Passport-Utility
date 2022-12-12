@@ -2,7 +2,13 @@
 
 use modular_bitfield_msb::prelude::*;
 
-use libscsi::{command::*, DataDirection, MaskedStatus, Scsi, SgIoHeader};
+use libscsi::{
+    command::{
+        sense::{FixedSenseBuffer, Sense},
+        *,
+    },
+    DataDirection, MaskedStatus, ResultData, Scsi,
+};
 
 use crate::{Error, Result, DATA_SIGNATURE};
 
@@ -40,7 +46,7 @@ impl Command for ThisCommand {
 
     type SenseBuffer = FixedSenseBuffer;
 
-    type ReturnType = Result<()>;
+    type ReturnType = crate::Result<()>;
 
     fn get_direction(&self) -> DataDirection {
         DataDirection::ToDevice
@@ -66,18 +72,17 @@ impl Command for ThisCommand {
     }
 
     fn get_sense_buffer(&self) -> Self::SenseBuffer {
-        helper::fixed_sense_buffer_value()
+        Self::SenseBuffer::default()
     }
 
     fn process_result(
         &self,
-        ioctl_result: i32,
-        io_header: &SgIoHeader<Self::CommandBuffer, Self::DataBuffer, Self::SenseBuffer>,
+        result: &ResultData<Self::DataBuffer, Self::SenseBuffer>,
     ) -> Self::ReturnType {
-        helper::check_ioctl_result(ioctl_result)?;
+        result.check_ioctl_error()?;
 
-        if io_header.masked_status == MaskedStatus::CHECK_CONDITION {
-            let sens_buffer = io_header.sense_buffer.as_ref().unwrap();
+        if result.masked_status == MaskedStatus::CHECK_CONDITION {
+            let sens_buffer = result.sense_buffer.as_ref().unwrap();
             // ILLEGAL REQUEST
             if sens_buffer.sense_key() == 0x05 {
                 if sens_buffer.additional_sense_code() == 0x74 {
@@ -97,13 +102,7 @@ impl Command for ThisCommand {
             }
         }
 
-        helper::check_error_status_any_sense(
-            io_header.masked_status,
-            io_header.host_status,
-            io_header.driver_status,
-            io_header.sense_buffer_written,
-            Some(io_header.sense_buffer.as_ref().unwrap().as_slice()),
-        )?;
+        result.check_common_error()?;
 
         Ok(())
     }

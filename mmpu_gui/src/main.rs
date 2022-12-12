@@ -5,13 +5,7 @@
 
 mod gui_error;
 
-use std::{
-    collections::HashMap,
-    fs, io,
-    path::{Path, PathBuf},
-    sync::Mutex,
-    vec,
-};
+use std::{collections::HashMap, io, path::PathBuf, sync::Mutex, vec};
 
 use serde::Serialize;
 use tauri::{Manager, State};
@@ -33,7 +27,8 @@ struct PathAndName {
     pub name: String,
 }
 
-fn get_root_with_file(path: &Path, filename: &str) -> Result<PathBuf> {
+#[cfg(target_os = "linux")]
+fn get_root_with_file(path: &std::path::Path, filename: &str) -> Result<PathBuf> {
     let mut path = path.canonicalize()?;
     loop {
         if path.join(filename).exists() {
@@ -49,10 +44,11 @@ fn get_root_with_file(path: &Path, filename: &str) -> Result<PathBuf> {
     Ok(path)
 }
 
+#[cfg(target_os = "linux")]
 #[tauri::command]
 fn list_drives() -> Result<Vec<PathAndName>> {
     let mut result = HashMap::new();
-    let paths = fs::read_dir("/sys/dev/block/")?;
+    let paths = std::fs::read_dir("/sys/dev/block/")?;
     for path in paths {
         // a naive way to determine if it's a partition or a drive.
         let path = &path?.path();
@@ -64,7 +60,7 @@ fn list_drives() -> Result<Vec<PathAndName>> {
         let filename = block_path.file_name().unwrap();
         if filename.to_string_lossy().starts_with("sd") {
             let product_name = match product_path {
-                Ok(path) => fs::read_to_string(path.join("model"))?,
+                Ok(path) => std::fs::read_to_string(path.join("model"))?,
                 Err(_) => "".to_owned(),
             };
             result.insert(PathBuf::from("/dev/").join(filename), product_name);
@@ -83,9 +79,170 @@ fn list_drives() -> Result<Vec<PathAndName>> {
     Ok(result)
 }
 
+#[cfg(target_os = "windows")]
 #[tauri::command]
-fn open_device(path: String, storage: State<Storage>) -> Result<()> {
-    let device = Scsi::new(&path, None)?;
+fn list_drives() -> Result<Vec<PathAndName>> {
+    use windows::core::PCWSTR;
+    use windows::Win32::Devices::DeviceAndDriverInstallation::{
+        SetupDiEnumDeviceInterfaces, SetupDiGetClassDevsW, SetupDiGetDeviceInterfaceDetailW,
+        DIGCF_DEVICEINTERFACE, DIGCF_PRESENT, SP_DEVICE_INTERFACE_DATA,
+        SP_DEVICE_INTERFACE_DETAIL_DATA_W,
+    };
+    use windows::Win32::Foundation::CloseHandle;
+    use windows::Win32::Storage::FileSystem::{CreateFileW, OPEN_EXISTING};
+    use windows::Win32::System::Ioctl::{
+        GUID_DEVINTERFACE_DISK, IOCTL_STORAGE_GET_DEVICE_NUMBER, STORAGE_DEVICE_NUMBER,
+    };
+    use windows::Win32::System::IO::DeviceIoControl;
+
+    let mut result = HashMap::new();
+
+    let disk_guid = GUID_DEVINTERFACE_DISK;
+    let device_info_set = unsafe {
+        let result = SetupDiGetClassDevsW(
+            Some(&disk_guid as _),
+            None,
+            None,
+            DIGCF_PRESENT | DIGCF_DEVICEINTERFACE,
+        );
+
+        match result {
+            Ok(disks) => disks,
+            Err(_) => Err(io::Error::last_os_error())?,
+        }
+    };
+
+    let mut device_interface_data = SP_DEVICE_INTERFACE_DATA::default();
+    device_interface_data.cbSize = std::mem::size_of_val(&device_interface_data)
+        .try_into()
+        .unwrap();
+
+    unsafe {
+        for index in 0.. {
+            if SetupDiEnumDeviceInterfaces(
+                device_info_set,
+                None,
+                &disk_guid as _,
+                index,
+                &mut device_interface_data as _,
+            ) == false
+            {
+                break;
+            }
+
+            let mut required_size = 0u32;
+            SetupDiGetDeviceInterfaceDetailW(
+                device_info_set,
+                &device_interface_data as _,
+                None,
+                0,
+                Some(&mut required_size as _),
+                None,
+            );
+
+            let layout = std::alloc::Layout::from_size_align(
+                required_size.try_into().unwrap(),
+                std::mem::align_of::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>(),
+            )
+            .unwrap();
+
+            let device_interface_detail_data =
+                std::alloc::alloc(layout) as *mut SP_DEVICE_INTERFACE_DETAIL_DATA_W;
+
+            if device_interface_detail_data.is_null() {
+                println!("Null");
+                break;
+            }
+
+            let mut device_interface_detail_data = Box::from_raw(device_interface_detail_data);
+
+            device_interface_detail_data.cbSize =
+                std::mem::size_of::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>() as u32;
+
+            if SetupDiGetDeviceInterfaceDetailW(
+                device_info_set,
+                &device_interface_data as _,
+                Some(&mut *device_interface_detail_data as _),
+                required_size,
+                None,
+                None,
+            ) == false
+            {
+                break;
+            }
+
+            let path = std::ptr::addr_of!(device_interface_detail_data.DevicePath) as _;
+
+            let handle = CreateFileW(
+                PCWSTR::from_raw(path),
+                Default::default(),
+                Default::default(),
+                None,
+                OPEN_EXISTING,
+                Default::default(),
+                None,
+            );
+            let handle = match handle {
+                Ok(handle) => handle,
+                Err(_) => Err(io::Error::last_os_error())?,
+            };
+
+            let mut disk_number = STORAGE_DEVICE_NUMBER::default();
+
+            let mut bytes_returned = 0;
+
+            let ioctl_result = DeviceIoControl(
+                handle,
+                IOCTL_STORAGE_GET_DEVICE_NUMBER,
+                None,
+                0,
+                Some(&mut disk_number as *mut _ as _),
+                std::mem::size_of::<STORAGE_DEVICE_NUMBER>() as u32,
+                Some(&mut bytes_returned),
+                None,
+            );
+
+            if !ioctl_result.as_bool() {
+                continue;
+            }
+
+            let disk_path =
+                PathBuf::from(format!("\\\\.\\PhysicalDrive{}", disk_number.DeviceNumber));
+            let product_name = 'product_name: {
+                let scsi = match Scsi::new(&disk_path) {
+                    Ok(scsi) => scsi,
+                    Err(_) => break 'product_name "".to_owned(),
+                };
+
+                let identification = match scsi.inquiry_product_identification() {
+                    Ok(identification) => identification,
+                    Err(_) => break 'product_name "".to_owned(),
+                };
+
+                identification
+            };
+
+            result.insert(disk_path, product_name);
+
+            CloseHandle(handle);
+        }
+    }
+
+    let mut result: Vec<_> = result
+        .iter()
+        .map(|r| PathAndName {
+            path: r.0.to_owned(),
+            name: r.1.to_owned(),
+        })
+        .collect();
+
+    result.sort_by(|a, b| a.path.cmp(&b.path));
+    Ok(result)
+}
+
+#[tauri::command]
+fn open_device(path: String, storage: State<Storage>) -> crate::Result<()> {
+    let device = Scsi::new(&path)?;
     let name = device.inquiry_product_identification()?;
     if !name.to_lowercase().contains("my passport") {
         Err(wd_vsc::Error::Other(
@@ -209,13 +366,12 @@ fn change_password(
 }
 
 #[tauri::command]
-fn basic_diagnose(storage: State<Storage>) -> Result<String> {
+fn basic_diagnose(storage: State<Storage>) -> crate::Result<String> {
     let device = storage.device.lock().unwrap();
     let device = device.as_ref().unwrap();
-    match device.send_diagnostic() {
+    match device.send_diagnostic()? {
         TestResult::Ok => Ok("Everything is okay.".to_owned()),
         TestResult::HardwareError => Ok("Hardware error!".to_owned()),
-        TestResult::Other(e) => Err(e)?,
     }
 }
 

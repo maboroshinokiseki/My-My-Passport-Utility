@@ -1,7 +1,5 @@
 #![allow(dead_code)]
 
-use std::io;
-
 use modular_bitfield_msb::prelude::*;
 
 use libscsi::Scsi;
@@ -44,21 +42,21 @@ impl OperationsPage {
     }
 }
 
-fn read(device: &Scsi) -> io::Result<OperationsPage> {
-    device.mode_sense::<OperationsPage>(PAGE_CODE)
+fn read(device: &Scsi) -> crate::Result<OperationsPage> {
+    Ok(device.mode_sense::<OperationsPage>(PAGE_CODE)?)
 }
 
-pub fn get_led_brightness(device: &Scsi) -> io::Result<u8> {
+pub fn get_led_brightness(device: &Scsi) -> crate::Result<u8> {
     Ok(read(device)?.get_led_brightness())
 }
 
-pub fn set_led_brightness(device: &Scsi, led_brightness: u8) -> io::Result<()> {
+pub fn set_led_brightness(device: &Scsi, led_brightness: u8) -> crate::Result<()> {
     let data = read(device)?
         .with_header(0)
         .with_parameter_savable(0)
         .with_power_led_brite(led_brightness);
 
-    device.mode_select(data)
+    Ok(device.mode_select(data)?)
 }
 
 #[cfg(test)]

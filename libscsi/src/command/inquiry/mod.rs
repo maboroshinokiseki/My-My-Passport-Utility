@@ -1,12 +1,12 @@
 #![allow(dead_code)]
 
-use std::{io, marker::PhantomData};
+use std::marker::PhantomData;
 
 use modular_bitfield_msb::prelude::*;
 
-use crate::{Command, DataDirection, Scsi, SgIoHeader};
+use crate::{result_data::ResultData, Command, DataDirection, Scsi};
 
-use super::helper;
+use super::sense::{BytesSenseBuffer, Sense};
 
 mod block_limits_vpd;
 mod logical_block_provisioning_vpd;
@@ -42,9 +42,9 @@ where
 
     type DataBufferWrapper = T;
 
-    type SenseBuffer = helper::BytesSenseBuffer;
+    type SenseBuffer = BytesSenseBuffer;
 
-    type ReturnType = io::Result<T>;
+    type ReturnType = crate::Result<T>;
 
     fn get_direction(&self) -> DataDirection {
         DataDirection::FromDevice
@@ -63,23 +63,22 @@ where
     }
 
     fn get_sense_buffer(&self) -> Self::SenseBuffer {
-        helper::bytes_sense_buffer_value()
+        Self::SenseBuffer::default()
     }
 
     fn process_result(
         &self,
-        ioctl_result: i32,
-        io_header: &SgIoHeader<Self::CommandBuffer, Self::DataBuffer, Self::SenseBuffer>,
+        result: &ResultData<Self::DataBuffer, Self::SenseBuffer>,
     ) -> Self::ReturnType {
-        helper::check_ioctl_result(ioctl_result)?;
-        helper::check_error_status(io_header)?;
+        result.check_ioctl_error()?;
+        result.check_common_error()?;
 
-        Ok(Clone::clone(io_header.data.as_ref().unwrap()))
+        Ok(Clone::clone(result.data.as_ref().unwrap()))
     }
 }
 
 impl Scsi {
-    fn inquiry_general<T: Default + Clone>(&self, page_code: Option<u8>) -> io::Result<T> {
+    fn inquiry_general<T: Default + Clone>(&self, page_code: Option<u8>) -> crate::Result<T> {
         let this_command = ThisCommand {
             enable_vpd: page_code.is_some(),
             page_code: page_code.unwrap_or_default(),

@@ -3,9 +3,15 @@
 use modular_bitfield_msb::prelude::*;
 use rand::{thread_rng, Rng};
 
-use libscsi::{command::*, DataDirection, Scsi, SgIoHeader};
+use libscsi::{
+    command::{
+        sense::{BytesSenseBuffer, Sense},
+        *,
+    },
+    DataDirection, ResultData, Scsi,
+};
 
-use crate::{Cipher, Result, DATA_SIGNATURE};
+use crate::{Cipher, DATA_SIGNATURE};
 
 const OPERATION_CODE: u8 = 0xc1;
 const OPERATION_SUBCODE: u8 = 0xe3;
@@ -49,9 +55,9 @@ impl Command for ThisCommand {
 
     type DataBufferWrapper = ResetDataEncryptionKeyData;
 
-    type SenseBuffer = helper::BytesSenseBuffer;
+    type SenseBuffer = BytesSenseBuffer;
 
-    type ReturnType = Result<()>;
+    type ReturnType = crate::Result<()>;
 
     fn get_direction(&self) -> DataDirection {
         DataDirection::ToDevice
@@ -81,16 +87,15 @@ impl Command for ThisCommand {
     }
 
     fn get_sense_buffer(&self) -> Self::SenseBuffer {
-        helper::bytes_sense_buffer_value()
+        Self::SenseBuffer::default()
     }
 
     fn process_result(
         &self,
-        ioctl_result: i32,
-        io_header: &SgIoHeader<Self::CommandBuffer, Self::DataBuffer, Self::SenseBuffer>,
+        result: &ResultData<Self::DataBuffer, Self::SenseBuffer>,
     ) -> Self::ReturnType {
-        helper::check_ioctl_result(ioctl_result)?;
-        helper::check_error_status(io_header)?;
+        result.check_ioctl_error()?;
+        result.check_common_error()?;
 
         Ok(())
     }
@@ -105,7 +110,7 @@ impl super::WdVscWrapper {
         scsi: &Scsi,
         cipher: Cipher,
         key_reset_enabler: u32,
-    ) -> Result<()> {
+    ) -> crate::Result<()> {
         let password_length = match cipher {
             Cipher::FullDiscEncryption | Cipher::NoEncryption => 0,
             _ => cipher.get_password_blob_size()?,

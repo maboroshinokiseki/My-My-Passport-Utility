@@ -1,10 +1,14 @@
 #![allow(dead_code)]
 
-use std::io;
-
 use modular_bitfield_msb::prelude::*;
 
-use libscsi::{command::*, DataDirection, Scsi, SgIoHeader};
+use libscsi::{
+    command::{
+        sense::{BytesSenseBuffer, Sense},
+        *,
+    },
+    DataDirection, ResultData, Scsi,
+};
 
 const OPERATION_CODE: u8 = 0xd5;
 
@@ -40,9 +44,9 @@ impl Command for ThisCommand {
 
     type DataBufferWrapper = ReadHandyCapacityData;
 
-    type SenseBuffer = helper::BytesSenseBuffer;
+    type SenseBuffer = BytesSenseBuffer;
 
-    type ReturnType = io::Result<HandyCapacity>;
+    type ReturnType = crate::Result<HandyCapacity>;
 
     fn get_direction(&self) -> DataDirection {
         DataDirection::FromDevice
@@ -57,18 +61,17 @@ impl Command for ThisCommand {
     }
 
     fn get_sense_buffer(&self) -> Self::SenseBuffer {
-        helper::bytes_sense_buffer_value()
+        Self::SenseBuffer::default()
     }
 
     fn process_result(
         &self,
-        ioctl_result: i32,
-        io_header: &SgIoHeader<Self::CommandBuffer, Self::DataBuffer, Self::SenseBuffer>,
+        result: &ResultData<Self::DataBuffer, Self::SenseBuffer>,
     ) -> Self::ReturnType {
-        helper::check_ioctl_result(ioctl_result)?;
-        helper::check_error_status(io_header)?;
+        result.check_ioctl_error()?;
+        result.check_common_error()?;
 
-        let result = io_header.data.as_ref().unwrap();
+        let result = result.data.as_ref().unwrap();
 
         Ok(HandyCapacity {
             last_handy_block_address: result.last_handy_block_address(),
@@ -79,7 +82,7 @@ impl Command for ThisCommand {
 }
 
 impl super::WdVscWrapper {
-    pub(super) fn read_handy_capacity(scsi: &Scsi) -> io::Result<HandyCapacity> {
+    pub(super) fn read_handy_capacity(scsi: &Scsi) -> crate::Result<HandyCapacity> {
         scsi.execute_command(&ThisCommand {})
     }
 }

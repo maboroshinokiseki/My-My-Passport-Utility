@@ -1,17 +1,15 @@
-mod fixed_sense_buffer;
-pub mod helper;
 mod inquiry;
 mod mode_select;
 mod mode_sense;
 mod read_capacity;
 mod send_diagnostic;
+pub mod sense;
 mod unmap;
 
 use std::{borrow::BorrowMut, mem::size_of};
 
-use crate::{DataDirection, SgIoHeader};
+use crate::{result_data::ResultData, DataDirection};
 
-pub use fixed_sense_buffer::FixedSenseBuffer;
 pub use send_diagnostic::TestResult;
 
 pub trait Command {
@@ -34,7 +32,6 @@ pub trait Command {
 
     fn process_result(
         &self,
-        ioctl_result: i32,
-        io_header: &SgIoHeader<Self::CommandBuffer, Self::DataBuffer, Self::SenseBuffer>,
+        result: &ResultData<Self::DataBuffer, Self::SenseBuffer>,
     ) -> Self::ReturnType;
 }

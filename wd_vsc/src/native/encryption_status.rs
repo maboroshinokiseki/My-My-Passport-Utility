@@ -1,10 +1,16 @@
 #![allow(dead_code)]
 
-use std::{io, mem::size_of};
+use std::mem::size_of;
 
 use modular_bitfield_msb::prelude::*;
 
-use libscsi::{command::*, DataDirection, Scsi, SgIoHeader};
+use libscsi::{
+    command::{
+        sense::{BytesSenseBuffer, Sense},
+        *,
+    },
+    DataDirection, ResultData, Scsi,
+};
 
 use crate::{Cipher, SecurityStatus, DATA_SIGNATURE};
 
@@ -61,9 +67,9 @@ impl Command for ThisCommand {
 
     type DataBufferWrapper = EncryptionStatusDataWithCiphers;
 
-    type SenseBuffer = helper::BytesSenseBuffer;
+    type SenseBuffer = BytesSenseBuffer;
 
-    type ReturnType = io::Result<EncryptionStatus>;
+    type ReturnType = crate::Result<EncryptionStatus>;
 
     fn get_direction(&self) -> DataDirection {
         DataDirection::FromDevice
@@ -84,23 +90,21 @@ impl Command for ThisCommand {
     }
 
     fn get_sense_buffer(&self) -> Self::SenseBuffer {
-        helper::bytes_sense_buffer_value()
+        Self::SenseBuffer::default()
     }
 
     fn process_result(
         &self,
-        ioctl_result: i32,
-        io_header: &SgIoHeader<Self::CommandBuffer, Self::DataBuffer, Self::SenseBuffer>,
+        result: &ResultData<Self::DataBuffer, Self::SenseBuffer>,
     ) -> Self::ReturnType {
-        helper::check_ioctl_result(ioctl_result)?;
-        helper::check_error_status(io_header)?;
+        result.check_ioctl_error()?;
+        result.check_common_error()?;
 
-        let result = io_header.data.as_ref().unwrap();
+        let result = result.data.as_ref().unwrap();
         let status = &result.encryption_status_data;
         if status.signature() != DATA_SIGNATURE {
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
-                "Invalid response signature, unsupported device.",
+            return Err(crate::Error::Other(
+                "Invalid response signature, unsupported device.".to_owned(),
             ));
         }
 
@@ -133,7 +137,7 @@ impl Command for ThisCommand {
 }
 
 impl super::WdVscWrapper {
-    pub(super) fn encryption_status(scsi: &Scsi) -> io::Result<EncryptionStatus> {
+    pub(super) fn encryption_status(scsi: &Scsi) -> crate::Result<EncryptionStatus> {
         scsi.execute_command(&ThisCommand {})
     }
 }

@@ -4,166 +4,14 @@ use std::{
     path::PathBuf,
 };
 
-use clap::{Parser, ValueEnum};
-
+use clap::Parser;
 use libscsi::command::TestResult;
 use wd_vsc::{
     device_configuration_page, operations_page, password_utility::*, power_condition_mode_page,
-    security_block::*, Cipher, Error, SecurityStatus, WdVsc, DEFAULT_ITERATION_COUNT, DEFAULT_SALT,
+    security_block::*, Error, SecurityStatus, WdVsc, DEFAULT_ITERATION_COUNT, DEFAULT_SALT,
 };
-
-#[derive(Parser)]
-#[command(author, version, about, long_about = None)]
-struct Cli {
-    /// My passport device
-    #[arg(short, long)]
-    device: Option<PathBuf>,
-
-    /// Show device info
-    #[arg(short, long, requires = "device")]
-    info: bool,
-
-    /// Set or get password hint
-    #[arg(long, requires = "device")]
-    hint: Option<Option<String>>,
-
-    /// Unlock the device with the given password
-    #[arg(
-        short,
-        long,
-        group = "crypto",
-        group = "urg",
-        value_name = "PASSWORD",
-        requires = "device"
-    )]
-    unlock: Option<String>,
-
-    /// Iteration count for unlocking or removing password (optional)
-    #[arg(long, requires = "urg")]
-    iteration_count: Option<u32>,
-
-    /// Salt for unlocking or removing password, the max is 4 character (8 bytes) long (optional)
-    #[arg(long, requires = "urg")]
-    salt: Option<String>,
-
-    /// Set a new password
-    #[arg(
-        short,
-        long,
-        group = "crypto",
-        value_name = "CURRENT PASSWORD",
-        requires = "device"
-    )]
-    set_password: Option<String>,
-
-    /// Provide old password while setting new passwords if needed
-    #[arg(short, long, requires = "set_password", value_name = "OLD PASSWORD")]
-    old_password: Option<String>,
-
-    /// New iteration count (optional).
-    /// WD software will either ignore or mess with this value.
-    /// Don't use WD software if you have set a custom value.
-    #[arg(long, requires = "set_password", requires = "i_know_what_i_am_doing")]
-    new_iteration_count: Option<u32>,
-
-    /// Old iteration count (optional)
-    #[arg(long, requires = "set_password")]
-    old_iteration_count: Option<u32>,
-
-    /// New salt, the max is 4 character (8 bytes) long (optional).
-    /// WD software will either ignore or mess with this value.
-    /// Don't use WD software if you have set a custom value.
-    #[arg(long, requires = "set_password", requires = "i_know_what_i_am_doing")]
-    new_salt: Option<String>,
-
-    /// Old salt, the max is 4 character (8 bytes) long (optional)
-    #[arg(long, requires = "set_password")]
-    old_salt: Option<String>,
-
-    /// Remove current password
-    #[arg(
-        short,
-        long,
-        group = "crypto",
-        group = "urg",
-        value_name = "PASSWORD",
-        requires = "device"
-    )]
-    remove_password: Option<String>,
-
-    /// Erase both password and content, not recoverable
-    #[arg(
-        short,
-        long,
-        group = "crypto",
-        group = "eg",
-        requires = "i_know_what_i_am_doing",
-        requires = "device"
-    )]
-    erase: bool,
-
-    /// The device may erase data by itself, that's not controllable.
-    /// This option is meaningless, since data is still been encrypted.
-    /// You'll not be able to get the original data without a userkey and a disk internal key.
-    #[arg(short, long, requires = "erase")]
-    preserve_data: bool,
-
-    /// Set new encryption cipher
-    #[arg(short, long, requires = "eg")]
-    cipher: Option<Cipher>,
-
-    /// Force it to do some dangerous things
-    #[arg(long)]
-    i_know_what_i_am_doing: bool,
-
-    /// Generate password blob. Specify output argument to output to a file. If output argument is not specified, it'll output to stdout.
-    #[arg(
-        short,
-        long,
-        group = "crypto",
-        group = "urg",
-        group = "eg",
-        value_name = "PASSWORD"
-    )]
-    generate_password_blob: Option<String>,
-
-    /// Output password blob
-    #[arg(long, requires = "generate_password_blob", value_name = "PATH")]
-    output: Option<PathBuf>,
-
-    /// Unlock the device with a password from the given path. If no path was specified, then it'll try to read from stdin
-    #[arg(
-        short = 'U',
-        long,
-        group = "crypto",
-        group = "urg",
-        value_name = "PATH",
-        requires = "device"
-    )]
-    unlock_with_password_blob: Option<Option<PathBuf>>,
-
-    /// Get or set virtual cdrom on or off
-    #[arg(long, requires = "device")]
-    virtual_cd: Option<Option<Switch>>,
-
-    /// Get or set led brightness, 0 means off, 255 means on, some model may support something middle
-    #[arg(long, requires = "device")]
-    led_brightness: Option<Option<u8>>,
-
-    /// Get or set sleep timer (in seconds), 0 means don't go sleep, value may be rounded
-    #[arg(long, requires = "device")]
-    sleep_timer: Option<Option<u32>>,
-
-    /// Very minimum self diagnostic
-    #[arg(long, requires = "device")]
-    self_test: bool,
-}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
-pub enum Switch {
-    On,
-    Off,
-}
+mod args;
+use args::*;
 
 fn main() -> wd_vsc::Result<()> {
     let cli = Cli::parse();
@@ -174,13 +22,30 @@ fn main() -> wd_vsc::Result<()> {
 
     let (device, status) = match cli.device {
         Some(path) => {
-            let device = libscsi::Scsi::new(&path, None)?;
+            let path = if cfg!(target_os = "windows") {
+                // A small QOL for Windows users
+                let path_str = path.to_string_lossy().as_ref().to_owned();
+                let chars: Vec<char> = path_str.chars().collect();
+
+                let is_drive_root = (chars.len() == 1 && chars[0].is_ascii_alphabetic())
+                    || (chars.len() == 2 && chars[0].is_ascii_alphabetic() && chars[1] == ':');
+
+                if is_drive_root {
+                    PathBuf::from(format!("\\\\.\\{}:", chars[0]))
+                } else {
+                    path
+                }
+            } else {
+                path
+            };
+
+            let device = libscsi::Scsi::new(&path)?;
 
             let product_name = device.inquiry_product_identification()?;
             if !product_name.to_lowercase().contains("my passport") && !cli.i_know_what_i_am_doing {
                 return Err(wd_vsc::Error::Other(
                     "This device doesn't seem like a my passport device. \
-        Use --i-know-what-i-am-doing flag if you wish to continue."
+                    Use --i-know-what-i-am-doing flag if you wish to continue."
                         .to_owned(),
                 ));
             }
@@ -434,10 +299,9 @@ fn main() -> wd_vsc::Result<()> {
     }
 
     if cli.self_test {
-        match device.send_diagnostic() {
+        match device.send_diagnostic()? {
             TestResult::Ok => println!("Ok"),
             TestResult::HardwareError => println!("Hardware Error!"),
-            TestResult::Other(e) => Err(e)?,
         }
     }
 

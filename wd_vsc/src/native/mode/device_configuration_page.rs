@@ -1,7 +1,5 @@
 #![allow(dead_code)]
 
-use std::io;
-
 use modular_bitfield_msb::prelude::*;
 
 use libscsi::Scsi;
@@ -39,20 +37,21 @@ impl DeviceConfigurationPage {
     }
 }
 
-fn read(device: &Scsi) -> io::Result<DeviceConfigurationPage> {
-    device.mode_sense::<DeviceConfigurationPage>(PAGE_CODE)
+fn read(device: &Scsi) -> crate::Result<DeviceConfigurationPage> {
+    Ok(device.mode_sense::<DeviceConfigurationPage>(PAGE_CODE)?)
 }
 
-pub fn get_virtual_cd_status(device: &Scsi) -> io::Result<bool> {
+pub fn get_virtual_cd_status(device: &Scsi) -> crate::Result<bool> {
     Ok(read(device)?.is_virtual_cd_on())
 }
 
-pub fn set_virtual_cd_status(device: &Scsi, enable_cd: bool) -> io::Result<()> {
+pub fn set_virtual_cd_status(device: &Scsi, enable_cd: bool) -> crate::Result<()> {
     let data = read(device)?
         .with_header(0)
         .with_parameter_savable(0)
         .with_disable_cdrom(!enable_cd as u8);
-    device.mode_select(data)
+
+    Ok(device.mode_select(data)?)
 }
 
 #[cfg(test)]

@@ -1,8 +1,23 @@
+mod access_flag;
+mod auxiliary_info;
 pub mod command;
+mod data_direction;
+mod driver_status;
+mod error;
 mod file_descriptor;
+mod host_status;
+mod masked_status;
+mod os;
+mod result_data;
 mod scsi;
-mod sg_io_header;
 
+pub use access_flag::AccessFlags;
+pub use auxiliary_info::AuxiliaryInfo;
 pub use command::Command;
+pub use data_direction::DataDirection;
+pub use driver_status::DriverStatus;
+pub use error::{Error, Result};
+pub use host_status::HostStatus;
+pub use masked_status::MaskedStatus;
+pub use result_data::ResultData;
 pub use scsi::Scsi;
-pub use sg_io_header::*;

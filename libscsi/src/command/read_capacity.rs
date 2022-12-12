@@ -1,11 +1,10 @@
 #![allow(dead_code)]
 
-use std::io;
-
 use modular_bitfield_msb::prelude::*;
 
-use super::helper;
-use crate::{Command, DataDirection, Scsi, SgIoHeader};
+use crate::{result_data::ResultData, Command, DataDirection, Scsi};
+
+use super::sense::{BytesSenseBuffer, Sense};
 
 const OPERATION_CODE: u8 = 0x9e;
 const READ_CAPACITY_16_SERVICE_ACTION: u8 = 0x10;
@@ -53,9 +52,9 @@ impl Command for ThisCommand {
 
     type DataBufferWrapper = Self::DataBuffer;
 
-    type SenseBuffer = helper::BytesSenseBuffer;
+    type SenseBuffer = BytesSenseBuffer;
 
-    type ReturnType = io::Result<Capacity>;
+    type ReturnType = crate::Result<Capacity>;
 
     fn get_direction(&self) -> DataDirection {
         DataDirection::FromDevice
@@ -73,18 +72,17 @@ impl Command for ThisCommand {
     }
 
     fn get_sense_buffer(&self) -> Self::SenseBuffer {
-        helper::bytes_sense_buffer_value()
+        Self::SenseBuffer::default()
     }
 
     fn process_result(
         &self,
-        ioctl_result: i32,
-        io_header: &SgIoHeader<Self::CommandBuffer, Self::DataBuffer, Self::SenseBuffer>,
+        result: &ResultData<Self::DataBuffer, Self::SenseBuffer>,
     ) -> Self::ReturnType {
-        helper::check_ioctl_result(ioctl_result)?;
-        helper::check_error_status(io_header)?;
+        result.check_ioctl_error()?;
+        result.check_common_error()?;
 
-        let result = io_header.data.as_ref().unwrap();
+        let result = result.data.as_ref().unwrap();
         Ok(Capacity {
             logical_block_count: result.returned_logical_block_address() + 1,
             logical_block_length_in_bytes: result.logical_block_length_in_bytes(),
@@ -93,7 +91,7 @@ impl Command for ThisCommand {
 }
 
 impl Scsi {
-    pub fn read_capacity16(&self) -> io::Result<Capacity> {
+    pub fn read_capacity16(&self) -> crate::Result<Capacity> {
         let this_command = ThisCommand {};
         self.execute_command(&this_command)
     }
