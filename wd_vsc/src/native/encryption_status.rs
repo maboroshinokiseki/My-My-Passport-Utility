@@ -38,7 +38,7 @@ struct EncryptionStatusCommand {
 }
 
 #[bitfield]
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 struct EncryptionStatusData {
     signature: B8,
     reserved_0: B16,
